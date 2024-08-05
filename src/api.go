@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"errors"
 )
 
 type message struct {
@@ -107,14 +109,14 @@ func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) co
 	if strings.Compare(um, "") == 0 {
 
 		m = []message{
-			{Role: "system", Content: sp.model_task + sp.userTask + sp.restrictions + sp.response_format},
+			{Role: "system", Content: sp.mt + sp.ut + sp.r + sp.rf},
 		}
 
 	} else {
 
 		m = []message{
-			{Role: "system", Content: sp.model_task + sp.userTask + sp.restrictions + sp.response_format},
-			{Role: "user", Content: "History: " + sp.history},
+			{Role: "system", Content: sp.mt + sp.ut + sp.r + sp.rf},
+			{Role: "user", Content: "History: " + sp.h},
 			{Role: "user", Content: "New Message: " + um},
 		}
 
@@ -149,45 +151,45 @@ func moderationEndpoint(r moderationsRequest) (bool, error) {
 
 	if err != nil {
 		log.Fatalf("Error encoding request body: %v", err)
+		return true, err
 	}
-
-	fmt.Println("Encoded Request Body looks like: ", requestBody)
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/moderations", bytes.NewBuffer(requestBody))
 	if err != nil {
 		log.Fatalf("Error creating request: %v", err)
+		return true, err
 	}
 
-	fmt.Println("Request Looks like: ", req)
-
-	// Set headers
+	// Sets request headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", r.k))
 
-	// Perform the request
+	// Performs request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("Error making request: %v", err)
+		return true, err
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
+	// Reads response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Error reading response body: %v", err)
+		return true, err
 	}
-
-	// Print the raw response
-	fmt.Println("Raw Response Body: ", string(body))
 
 	var response moderationsResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Fatalf("Error decoding response body: %v", err)
+		return true, err
 	}
 
-	fmt.Println("JSON response unmarshalled into struct: ", response)
+	if len(response.Results) == 0 {
+		return true, errors.New("no result returned by moderations api")
+	}
 
 	return response.Results[len(response.Results)-1].Flagged, nil
 
@@ -221,7 +223,7 @@ func moderationEndpoint(r moderationsRequest) (bool, error) {
 //     ]
 //   }'
 
-func chatCompletionsEndpoint(r completionsRequest) (string, error) {
+func chatCompletionsEndpoint(r completionsRequest) (completionsResponse, error) {
 
 	requestBodyMap := map[string]interface{}{
 		"model":    r.Model,
@@ -273,15 +275,5 @@ func chatCompletionsEndpoint(r completionsRequest) (string, error) {
 
 	}
 
-	fmt.Println("Response received: ", chatCompletionResponse)
-
-	// Extract and print the assistant's response
-	if len(chatCompletionResponse.Choices) > 0 {
-		assistantResponse := chatCompletionResponse.Choices[0].Message.Content
-		fmt.Printf("Assistant: %s\n", assistantResponse)
-	} else {
-		fmt.Println("No response from assistant.")
-	}
-
-	return "response", nil
+	return chatCompletionResponse, nil
 }
