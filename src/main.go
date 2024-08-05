@@ -1,4 +1,4 @@
-package main
+package languageGateway
 
 import (
 	"encoding/json"
