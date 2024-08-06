@@ -18,9 +18,9 @@ type message struct {
 }
 
 type moderationsRequest struct {
-	k          string
-	model_name string
-	input      string
+	k         string
+	ModelName string
+	Input     string
 }
 
 type moderationsResponse struct {
@@ -85,9 +85,9 @@ type completionsResponse struct {
 func buildModerationsRequest(m string, mn string, k string) moderationsRequest {
 
 	return moderationsRequest{
-		k:          k,
-		model_name: mn,
-		input:      m,
+		k:         k,
+		ModelName: mn,
+		Input:     m,
 	}
 
 }
@@ -109,14 +109,14 @@ func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) co
 	if strings.Compare(um, "") == 0 {
 
 		m = []message{
-			{Role: "system", Content: sp.mt + sp.ut + sp.r + sp.rf},
+			{Role: "system", Content: sp.MT + sp.UT + sp.R + sp.RF},
 		}
 
 	} else {
 
 		m = []message{
-			{Role: "system", Content: sp.mt + sp.ut + sp.r + sp.rf},
-			{Role: "user", Content: "History: " + sp.h},
+			{Role: "system", Content: sp.MT + sp.UT + sp.R + sp.RF},
+			{Role: "user", Content: "History: " + sp.H},
 			{Role: "user", Content: "New Message: " + um},
 		}
 
@@ -145,8 +145,8 @@ func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) co
 func moderationEndpoint(r moderationsRequest) (bool, error) {
 
 	requestBody, err := json.Marshal(map[string]string{
-		"input": r.input,
-		"model": r.model_name,
+		"input": r.Input,
+		"model": r.ModelName,
 	})
 
 	if err != nil {

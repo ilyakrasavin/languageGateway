@@ -5,10 +5,10 @@ import (
 )
 
 type UserMessage struct {
-	uid string
+	UID string
 
-	mn string
-	m  string
+	MN string
+	M  string
 }
 
 type ModelResponse struct {
@@ -18,22 +18,22 @@ type ModelResponse struct {
 }
 
 type SystemPrompt struct {
-	s  string
-	ss string
-	l  string
-	ut string
+	SC  string
+	SS  string
+	LVL string
+	UT  string
 
-	r  string
-	rf string
+	R  string
+	RF string
 
-	mt string
+	MT string
 
-	h string
+	H string
 }
 
 func SendToModerations(um UserMessage, k string) (bool, error) {
 
-	var mr moderationsRequest = buildModerationsRequest(um.m, um.mn, k)
+	var mr moderationsRequest = buildModerationsRequest(um.M, um.MN, k)
 
 	// Prepares and makes a POST request to moderations API
 	flag, err := moderationEndpoint(mr)
@@ -57,7 +57,7 @@ func SendToModerations(um UserMessage, k string) (bool, error) {
 // Prepares the prompt and sends it to the model
 func SendToModel(um UserMessage, sp SystemPrompt, k string) (ModelResponse, error) {
 
-	var cr completionsRequest = buildCompletionsRequest(um.mn, sp, um.m, k)
+	var cr completionsRequest = buildCompletionsRequest(um.MN, sp, um.M, k)
 
 	// Submits POST to API
 	response, err := chatCompletionsEndpoint(cr)
