@@ -2,6 +2,8 @@ package languageGateway
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 )
 
 type UserMessage struct {
@@ -33,23 +35,26 @@ type SystemPrompt struct {
 
 func SendToModerations(um UserMessage, k string) (bool, error) {
 
-	var mr moderationsRequest = buildModerationsRequest(um.M, um.MN, k)
+	log.SetPrefix("SendToModerations: ")
+
+	mr, err := buildModerationsRequest(um.M, um.MN, k)
+
+	if err != nil {
+		return false, errors.Join(errors.New("error while calling buildModerationsRequest: "), err)
+	}
 
 	// Prepares and makes a POST request to moderations API
 	flag, err := moderationEndpoint(mr)
 
 	if err != nil {
 
-		return true, err
+		return false, errors.Join(errors.New("error while calling moderationEndpoint: "), err)
 	}
 
 	// Reports violation to backend for further handling
 	if flag {
-
 		return true, nil
 	}
-
-	// No errors, message not flagged by moderations.
 
 	return false, nil
 }
@@ -57,13 +62,25 @@ func SendToModerations(um UserMessage, k string) (bool, error) {
 // Prepares the prompt and sends it to the model
 func SendToModel(um UserMessage, sp SystemPrompt, k string) (ModelResponse, error) {
 
-	var cr completionsRequest = buildCompletionsRequest(um.MN, sp, um.M, k)
+	log.SetPrefix("SendToModel: ")
+
+	cr, err := buildCompletionsRequest(um.MN, sp, um.M, k)
+
+	if err != nil {
+		return ModelResponse{}, errors.Join(errors.New("error while calling buildCompletionsRequest: "), err)
+	}
 
 	// Submits POST to API
 	response, err := chatCompletionsEndpoint(cr)
+	if err != nil {
+		return ModelResponse{}, errors.Join(errors.New("error while calling chatCompletionsEndpoint: "), err)
+	}
 
 	var mr ModelResponse
-	json.Unmarshal([]byte(response.Choices[0].Message.Content), &mr)
+	if err := json.Unmarshal([]byte(response.Choices[0].Message.Content), &mr); err != nil {
+		return ModelResponse{}, errors.Join(errors.New("error while unmarshalling into ModelReponse struct: "), err)
+
+	}
 
 	return mr, err
 
