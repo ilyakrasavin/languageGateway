@@ -60,7 +60,7 @@ type completionsResponse struct {
 		FinishReason string      `json:"finish_reason"`
 		Index        int         `json:"index"`
 		Message      message     `json:"message"`
-		Logprobs     interface{} `json:"logprobs"` // Use interface{} to handle null values
+		Logprobs     interface{} `json:"logprobs"` // Uses interface{} to handle null values
 	} `json:"choices"`
 	Created int64  `json:"created"`
 	ID      string `json:"id"`
@@ -73,22 +73,22 @@ type completionsResponse struct {
 	} `json:"usage"`
 }
 
-// // Checks OpenAI Completions endpoint for reachability
-// func StatusCheck() (int, err) {
-
-// 	return 200, nil
-// }
-
 // m - message
 // mm - Moderations model name
 // k - API key
-func buildModerationsRequest(m string, mn string, k string) moderationsRequest {
+func buildModerationsRequest(m string, mn string, k string) (moderationsRequest, error) {
+
+	log.SetPrefix("buildModerationsRequest: ")
+
+	if m == "" || mn == "" || k == "" {
+		return moderationsRequest{}, errors.New("one or more argument values are missing, check input")
+	}
 
 	return moderationsRequest{
 		k:         k,
 		ModelName: mn,
 		Input:     m,
-	}
+	}, nil
 
 }
 
@@ -97,12 +97,13 @@ func buildModerationsRequest(m string, mn string, k string) moderationsRequest {
 // sp - System prompt struct
 // um - User message (for existing conversation)
 // mt - max number of tokens for response
-func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) completionsRequest {
+func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) (completionsRequest, error) {
 
-	// Convert System Prompt & User Message into structs.
+	log.SetPrefix("buildCompletionsRequest: ")
 
-	// Supplies sytem prompt only on activity initialization
-	// Supplies System prompt, Message history, New user message for existing activity
+	if mn == "" || k == "" {
+		return completionsRequest{}, errors.New("one or more argument values are missing, check input")
+	}
 
 	var m []message
 
@@ -126,7 +127,7 @@ func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) co
 		Model:    mn,
 		Messages: m,
 		k:        k,
-	}
+	}, nil
 
 }
 
@@ -144,20 +145,20 @@ func buildCompletionsRequest(mn string, sp SystemPrompt, um string, k string) co
 
 func moderationEndpoint(r moderationsRequest) (bool, error) {
 
+	log.SetPrefix("moderationEndpoint: ")
+
 	requestBody, err := json.Marshal(map[string]string{
 		"input": r.Input,
 		"model": r.ModelName,
 	})
 
 	if err != nil {
-		log.Fatalf("Error encoding request body: %v", err)
-		return true, err
+		return false, errors.Join(errors.New("error while encoding request body"), err)
 	}
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/moderations", bytes.NewBuffer(requestBody))
 	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
-		return true, err
+		return false, errors.Join(errors.New("error while creating request: "), err)
 	}
 
 	// Sets request headers
@@ -168,27 +169,24 @@ func moderationEndpoint(r moderationsRequest) (bool, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error making request: %v", err)
-		return true, err
+		return false, errors.Join(errors.New("error while making a request: "), err)
 	}
 	defer resp.Body.Close()
 
 	// Reads response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response body: %v", err)
-		return true, err
+		return false, errors.Join(errors.New("error while reading response body: "), err)
 	}
 
 	var response moderationsResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
-		log.Fatalf("Error decoding response body: %v", err)
-		return true, err
+		return false, errors.Join(errors.New("error while decoding response body: "), err)
 	}
 
 	if len(response.Results) == 0 {
-		return true, errors.New("no result returned by moderations api")
+		return false, errors.New("no results returned from moderations api")
 	}
 
 	return response.Results[len(response.Results)-1].Flagged, nil
@@ -225,23 +223,24 @@ func moderationEndpoint(r moderationsRequest) (bool, error) {
 
 func chatCompletionsEndpoint(r completionsRequest) (completionsResponse, error) {
 
+	log.SetPrefix("chatCompletionsEndpoint: ")
+
 	requestBodyMap := map[string]interface{}{
 		"model":    r.Model,
 		"messages": r.Messages,
 	}
 
-	// Marshal the request to JSON
+	// Marshals the request to JSON
 	requestBody, err := json.Marshal(requestBodyMap)
 	if err != nil {
-		log.Fatalf("Error encoding request body: %v", err)
+		return completionsResponse{}, errors.Join(errors.New("error while masrshalling requestBodyMap into JSON: "), err)
 	}
-
-	fmt.Println("Request to Completions looks like: ", r)
 
 	// Create the HTTP request
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
+		return completionsResponse{}, errors.Join(errors.New("error while creating a request: "), err)
+
 	}
 
 	// Set headers
@@ -252,14 +251,14 @@ func chatCompletionsEndpoint(r completionsRequest) (completionsResponse, error) 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error making request: %v", err)
+		return completionsResponse{}, errors.Join(errors.New("error while making a request: "), err)
 	}
 	defer resp.Body.Close()
 
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response body: %v", err)
+		return completionsResponse{}, errors.Join(errors.New("error while reading response body: "), err)
 	}
 
 	// Unmarshal the response to the struct
@@ -267,12 +266,7 @@ func chatCompletionsEndpoint(r completionsRequest) (completionsResponse, error) 
 	err = json.Unmarshal(body, &chatCompletionResponse)
 
 	if err != nil {
-		log.Fatalf("Error decoding response body: %v", err)
-
-		if err != nil {
-			log.Fatalf("Error decoding response body: %v", err)
-		}
-
+		return completionsResponse{}, errors.Join(errors.New("error while unmarshalling response body into completionsResponse struct: "), err)
 	}
 
 	return chatCompletionResponse, nil
