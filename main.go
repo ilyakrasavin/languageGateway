@@ -78,6 +78,9 @@ func SendToModel(um UserMessage, sp SystemPrompt, k string) (ModelResponse, erro
 
 	var mr ModelResponse
 	if err := json.Unmarshal([]byte(response.Choices[0].Message.Content), &mr); err != nil {
+
+		log.Println("PAYLOAD CAUSING ERRORS: ", response.Choices[0].Message.Content)
+
 		return ModelResponse{}, errors.Join(errors.New("error while unmarshalling into ModelReponse struct: "), err)
 
 	}
